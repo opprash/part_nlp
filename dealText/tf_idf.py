@@ -1,5 +1,10 @@
-
+# -*- coding: utf-8 -*-
+import os
+from sklearn.metrics import silhouette_samples, silhouette_score
 from sklearn.cluster import KMeans
+#from sklearn.cluster import isodata
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
@@ -11,7 +16,7 @@ import jieba.analyse
 
 
 def read_from_file(file_name):
-    with open(file_name, "r") as fp:
+    with open(file_name,mode='r') as fp:
         words = fp.read()
     return words
 
@@ -37,8 +42,6 @@ def gen_sim(A, B):
 
 
 def del_stop_words(words, stop_words_set):
-    #   words是已经切词但是没有去除停用词的文档。
-    #   返回的会是去除停用词后的文档
     result = jieba.cut(words)
     new_words = []
     for r in result:
@@ -68,10 +71,44 @@ def word_in_docs(word_set, docs):
         # print word_dict[word],
     return word_dict
 
+def tfidf(path, stop_words_set):
+    file = codecs.open(path, 'r','utf-8')
+    lines = [line.strip() for line in file]
+    str = ''.join(lines)
+    print(len(lines))
+    print('over')
+    docs = []
+    word_set = set()
+    for each in lines:
+        doc = del_stop_words(each, stop_words_set)
+        docs.append(doc)
+       # word_set |= set(doc)
+    #word_set = list(word_set)
+    words=[]
+    for each in docs:
+        str=''
+        for k in each:
+            str+=k+' '
+        words.append(str)
+
+    print(word_set)
+    print(docs)
+    print(len(docs))
+
+    # 该类会将文本中的词语转换为词频矩阵，矩阵元素a[i][j] 表示j词在i类文本下的词频
+    vectorizer = CountVectorizer(max_features=100)
+    # 该类会统计每个词语的tf-idf权值
+    tf_idf_transformer = TfidfTransformer()
+    # 将文本转为词频矩阵并计算tf-idf
+    tf_idf = tf_idf_transformer.fit_transform(vectorizer.fit_transform(words))
+    # 将tf-idf矩阵抽取出来，元素a[i][j]表示j词在i类文本中的tf-idf权重
+    x_train_weight = tf_idf.toarray()
+
+    print(x_train_weight)
+    return x_train_weight,lines
+
 
 def get_all_vector(path, stop_words_set):
-    #names = [os.path.join(file_path, f) for f in os.listdir(file_path)]
-    #posts = [open(name).read() for name in names]
     file = codecs.open(path, 'r')
     lines = [line.strip() for line in file]
     str = ''.join(lines)
@@ -81,33 +118,18 @@ def get_all_vector(path, stop_words_set):
     word_set = set()
     for each in lines:
         doc = del_stop_words(each, stop_words_set)
-        #print(doc)
-        #print(doc)
         docs.append(doc)
         word_set |= set(doc)
-        #print(word_set)
-        # print len(doc),len(word_set)
-
     word_set = list(word_set)
     print(word_set)
     docs_vsm = []
-    # for word in word_set[:30]:
-    # print word.encode("utf-8"),
-    #print(docs)
-
-    #for each in docs:
-        #print(each)
-
     for doc in docs:
         a=0
         #print(len(doc))
         temp_vector = []
         for word in word_set:
             if word in doc:
-                #print("yes+"+a.__str__())
                 a+=1
-            #print(doc.count(word) * 1.0)
-            #print(word)
             temp_vector.append(doc.count(word) * 1.0)
             #print(doc.count(word) * 1.0)
         # print temp_vector[-30:-1]
@@ -121,8 +143,12 @@ def get_all_vector(path, stop_words_set):
     column_sum = docs_matrix.shape[0] / column_sum
     #print(column_sum)
     idf = np.log(column_sum)
-
-    idf = np.diag(idf)
+    l=len(idf)
+    m=np.zeros((l,l))
+    for each in l:
+        m[l,l]=idf[l]
+    print(idf)
+    #idf = np.diag(idf)
     #print(idf.shape)
     #print(idf)
     # print idf.shape
@@ -135,7 +161,7 @@ def get_all_vector(path, stop_words_set):
         else:
             doc_v = doc_v / (doc_v.sum())
     #print(docs_matrix)
-    tfidf = np.dot(docs_matrix, idf)
+    tfidf = np.dot(docs_matrix, m)
     print(len(word_set))
     print(tfidf.shape)
     #print(type(tfidf))
@@ -180,12 +206,8 @@ def get_all_vector(path, stop_words_set):
 
 def PCA(weight, dimension):
     from sklearn.decomposition import PCA
-
     print('原有维度: ', len(weight[0]))
-
     print('开始降维:')
-
-
     pca = PCA(n_components=dimension)  # 初始化PCA
     X = pca.fit_transform(weight)  # 返回降维后的数据
     print('降维后维度: ', len(X[0]))
@@ -231,14 +253,13 @@ def kMeans(dataSet, k, distMeas=gen_sim, createCent=randCent):
 
 
 def kmeans(X, k):  # X=weight
-    clusterer = KMeans(n_clusters=k, init='k-means++')  # 设置聚类模型
+    clusterer = KMeans(n_clusters=k, init='k-means++',max_iter=1000)  # 设置聚类模型
     y = clusterer.fit_predict(X)  # 把weight矩阵扔进去fit一下,输出label
+    print('ss')
     print(type(y))
     print(y.shape)
     return y
 def Silhouette(X, y):
-    from sklearn.metrics import silhouette_samples, silhouette_score
-
     print
     '计算轮廓系数:'
 
@@ -316,16 +337,50 @@ def draw(datMat,clusterAssing,myCentroids):
     plt.scatter(CentX[:, 0], CentX[:, 1], marker='*', c='r')  # 画4个质心
     plt.show()
 """
+def mkdir(path):
+    folder=os.path.exists(path)
+    if not folder:
+        os.mkdir(path)
+        print(' -------new folder-----')
+        print("------ok------")
+    else:
+        print("here is already a folder")
 
+def sav_ressult(y,path2,k,lines):
+    dics={}
+    line=lines
+    lists=[]
+    for each1 in range(k):
+        each1=[]
+        lists.append(each1)
+    for each in range(len(y)):
+        #print(each)
+        for r in range(k):
+            #print(r)
+            if y[each]==r:
+                dics[each]=r
+                lists[r].append(line[each])
+
+
+    for result in range(k):
+        #path=''
+        path=path2+result.__str__()+'.txt'
+        with open(path,encoding='utf-8',mode='w') as file:
+            for each in lists[result]:
+                file.write(each+'\n')
+            file.close()
+    print(len(lists[0])+len(lists[1]))
+    print(dics)
 if __name__ == "__main__":
-    path = 'C:\\Users\\ruanlu\\Desktop\\test1.txt'
-    path1='C:\\Users\\ruanlu\\Desktop\\stop_words.txt'
+
     """
-    stop_words = stop_words("./stop_words.txt")
-    names, tfidf_mat = get_all_vector("./chinese/", stop_words)
-    myCentroids, clustAssing = kMeans(tfidf_mat, 3, gen_sim, randCent)
-    for label, name in zip(clustAssing[:, 0], names):
-        print (label, name)
+    path = 'C:\\Users\\ruanlu\\Desktop\\test.txt'
+    path1='C:\\Users\\ruanlu\\Desktop\\stop_words.txt'
+    path2='C:\\Users\\ruanlu\\Desktop\\datas\\result\\'
+    """
+    path = 'C:\\Users\\ruanlu\\Desktop\\test.txt'
+    path1 = 'C:\\Users\\ruanlu\\Desktop\\stop_words.txt'
+    path2 = 'C:\\Users\\ruanlu\\Desktop\\datas\\result\\'
     """
     k=8
     stop_words = stop_words(path1)
@@ -336,10 +391,17 @@ if __name__ == "__main__":
     #y=birch(tfidf_mat,k)
     silhouette_avg, sample_silhouette_values = Silhouette(tfidf_mat, y)  # 轮廓系数
     Draw(silhouette_avg, sample_silhouette_values, y, k,tfidf_mat)
-    #print(len(clustAssing))
-    #for label in clustAssing[:,0]:
-       # print(label)
-    #tfidf_mat = PCA(tfidf_mat, 2)
-    #draw(tfidf_mat,clustAssing,myCentroids)
-    #print(tfidf())
-    #print(stop_words())
+    """
+    stop_words = stop_words(path1)
+    #tfidf(path,stop_words)
+    k = 8
+    #stop_words = stop_words(path1)
+    #tfidf_mat = get_all_vector(path, stop_words)
+
+    tfidf_mat ,lines= tfidf(path,stop_words)
+    #tfidf_mat=PCA(tfidf_mat,1000)
+    y = kmeans(tfidf_mat, k)
+    sav_ressult(y,path2,k,lines)
+    #y=birch(tfidf_mat,k)
+    silhouette_avg,sample_silhouette_values = Silhouette(tfidf_mat, y)  # 轮廓系数
+    Draw(silhouette_avg, sample_silhouette_values, y, k, tfidf_mat)

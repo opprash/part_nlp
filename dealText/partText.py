@@ -1,3 +1,5 @@
+import codecs
+
 import jieba
 import sys
 import re
@@ -103,8 +105,19 @@ def del_stop_word(path,stop_word_set):
             #print(each)
             f.writelines(each)
         f.close()
+
+
+
+def opss():
+    file = codecs.open(path, 'r','utf-8')
+    lines = [line.strip() for line in file]
+    with open('C:\\Users\\ruanlu\\Desktop\\test.txt',encoding='utf-8',mode='w')as f:
+        for wach in range(9000):
+            f.write(lines[wach]+'\n')
+        f.close()
 if __name__ == '__main__':
-    pos,neg,str1,str2=readAndDeal(path)
-    del_stop_word(str1, 'C:\\Users\\ruanlu\\Desktop\\stop_words.txt')
+    #pos,neg,str1,str2=readAndDeal(path)
+    #del_stop_word(str1, 'C:\\Users\\ruanlu\\Desktop\\stop_words.txt')
     #writeData(path1, pos)
     #writeData(path2, neg)
+    opss()
